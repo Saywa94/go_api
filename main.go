@@ -1,24 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"net/http"
+
+	"github.com/Saywa94/go_api/application"
 )
 
 func main() {
+	app := application.New()
 
-	router := chi.NewRouter()
-	router.Use(middleware.Logger)
-
-	router.Get("/", handleGet)
-
-	fmt.Println("Server running on port 3000")
-
-	http.ListenAndServe(":3000", router)
-}
-
-func handleGet(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello, api world!"))
+	err := app.Start(context.TODO())
+	if err != nil {
+		fmt.Println("Failed to start app: ", err)
+	}
 }
