@@ -2,12 +2,14 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/Saywa94/go_api/model"
@@ -67,9 +69,9 @@ func (h *Order) List(w http.ResponseWriter, r *http.Request) {
 	if cursorStr == "" {
 		cursorStr = "0"
 	}
-	const decimal = 10
+	const base = 10
 	const bitSize = 64
-	cursor, err := strconv.ParseUint(cursorStr, decimal, bitSize)
+	cursor, err := strconv.ParseUint(cursorStr, base, bitSize)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -105,7 +107,34 @@ func (h *Order) List(w http.ResponseWriter, r *http.Request) {
 
 // Get an order by ID
 func (h *Order) GetByID(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Get an order by ID")
+	idParam := chi.URLParam(r, "id")
+
+	const base = 10
+	const bitSize = 64
+
+	orderId, err := strconv.ParseUint(idParam, base, bitSize)
+	if err != nil {
+		fmt.Println("Failed to parse id: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	o, err := h.Repo.FindByID(r.Context(), orderId)
+	if errors.Is(err, order.ErrNotExist) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Encoder already writes json encoded string to stream
+	if err := json.NewEncoder(w).Encode(o); err != nil {
+		fmt.Println("Failed to encode order: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 }
 
 // Update an order by ID
