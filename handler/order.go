@@ -139,10 +139,105 @@ func (h *Order) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // Update an order by ID
 func (h *Order) UpdateByID(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Update an order by ID")
+	var body struct {
+		Status string `json:"status"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		fmt.Println("Failed to decode body: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	idParam := chi.URLParam(r, "id")
+
+	const base = 10
+	const bitSize = 64
+
+	orderId, err := strconv.ParseUint(idParam, base, bitSize)
+	if err != nil {
+		fmt.Println("Failed to parse id: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	o, err := h.Repo.FindByID(r.Context(), orderId)
+	if errors.Is(err, order.ErrNotExist) {
+		w.Write([]byte("Order does not exist"))
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	const completedStatus = "completed"
+	const shippedStatus = "shipped"
+	now := time.Now().UTC()
+
+	switch body.Status {
+	case shippedStatus:
+		if o.ShippedAt != nil {
+			w.Write([]byte("Order already shipped"))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		o.ShippedAt = &now
+	case completedStatus:
+		if o.CompletedAt != nil || o.ShippedAt == nil {
+			w.Write([]byte("Order not yet shipped or already completed"))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		o.CompletedAt = &now
+	default:
+		w.Write([]byte("Invalid status"))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = h.Repo.UpdateByID(r.Context(), o)
+	if err != nil {
+		w.Write([]byte("Failed to update order"))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Encoder already writes json encoded string to stream
+	if err := json.NewEncoder(w).Encode(o); err != nil {
+		fmt.Println("Failed to encode order: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 }
 
 // Delete and order by ID
 func (h *Order) DeleteByID(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Delete and order by ID")
+
+	idParam := chi.URLParam(r, "id")
+
+	const base = 10
+	const bitSize = 64
+
+	orderId, err := strconv.ParseUint(idParam, base, bitSize)
+	if err != nil {
+		fmt.Println("Failed to parse id: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = h.Repo.DeleteByID(r.Context(), orderId)
+	if errors.Is(err, order.ErrNotExist) {
+		w.Write([]byte("Order does not exist"))
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println("Order deleted successfully")
+	w.WriteHeader(http.StatusOK)
+
 }

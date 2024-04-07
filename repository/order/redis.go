@@ -81,6 +81,7 @@ func (r *RedisRepo) DeleteByID(ctx context.Context, id uint64) error {
 	err := txn.Del(ctx, key).Err()
 	if errors.Is(err, redis.Nil) {
 		txn.Discard()
+		fmt.Println("Order does not exist")
 		return ErrNotExist
 	} else if err != nil {
 		txn.Discard()
